@@ -73,9 +73,11 @@ struct Settings {
   String pass;
   String server;        // "" = find the laptop automatically
   int volume = 80;      // 0-100
-  int silenceMs = 2000; // pause that ends a question
-  int sensitivity = 5;  // 1 (needs loud voice) .. 10 (very sensitive)
-  int micGain = 16;     // digital mic gain
+  // Defaults tuned on real hardware (INMP441 next to the face): gain 16 clipped,
+  // a 2 s pause made replies feel slow, sensitivity 5 caught too much chatter.
+  int silenceMs = 800;  // pause that ends a question
+  int sensitivity = 4;  // 1 (needs loud voice) .. 10 (very sensitive)
+  int micGain = 6;      // digital mic gain
   bool handsFree = true; // false = only the BOOT button starts recording
   float voiceRef = 0;    // your speaking level from 'calibrate' (0 = none)
   bool listen = true;
@@ -88,9 +90,9 @@ void loadSettings() {
   cfg.pass = prefs.getString("pass", "");
   cfg.server = prefs.getString("server", "");
   cfg.volume = prefs.getInt("volume", 80);
-  cfg.silenceMs = prefs.getInt("silence", 2000);
-  cfg.sensitivity = prefs.getInt("sens", 5);
-  cfg.micGain = prefs.getInt("gain", 16);
+  cfg.silenceMs = prefs.getInt("silence", 800);
+  cfg.sensitivity = prefs.getInt("sens", 4);
+  cfg.micGain = prefs.getInt("gain", 6);
   cfg.handsFree = prefs.getBool("auto", true);
   cfg.voiceRef = prefs.getFloat("voice", 0);
   cfg.compress = prefs.getBool("adpcm", true);

@@ -19,8 +19,8 @@ time, records while you speak, sends the audio to a laptop, and plays back a
 spoken answer.
 
 ```bash
-git clone https://github.com/vishwab0815/3D-glasses.git
-cd 3D-glasses
+git clone https://github.com/somdipto/Dan-Glasses-Firmware.git
+cd Dan-Glasses-Firmware/groq-voice-assistant
 ```
 
 ```
@@ -31,10 +31,90 @@ cd 3D-glasses
  You hear ◄── speaker ◄── MAX98357A ◄── XIAO ESP32-S3 ◄──┘ WAV reply
 ```
 
-- Starts recording by itself when you speak, stops after about 2 s of silence (10 s max).
+- Starts recording by itself when you speak, stops after 0.8 s of silence (7 s max).
+- Answers only "Hey Danny, ..." questions; follow-ups within 10 s don't need the name.
 - Finds the laptop on the network automatically, so you never type an IP address.
 - Remembers the conversation for follow-up questions (forgets after 5 quiet minutes).
 - Wi-Fi is set up over USB with one command, or from a phone.
+
+---
+
+## Connect it: step by step
+
+Tested end to end on a XIAO ESP32-S3 + INMP441 + MAX98357A. Every step that
+caught us out is marked ⚠.
+
+**1. Wire it** (USB unplugged), exactly as in [section 1](#every-connection).
+⚠ The clock pins are **swapped** compared to upstream: SCK/BCLK on **D2**, WS/LRC on **D1**.
+⚠ Mic **L/R → GND**, mic **VDD → 3V3** (never 5V). Speaker wires go **only** to amp SPK+ / SPK−.
+
+**2. Get a Groq key** at https://console.groq.com/keys.
+⚠ In the **same Groq organisation** as the key, open the
+[Orpheus playground](https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english),
+run a short test and click **Accept**. Without that, Groq refuses the voice; the server then
+uses the computer's built-in voice instead (it still works, just more robotic).
+
+**3. Create `server/.env`:** copy `server/.env.example` to `server/.env` and paste your key
+after `GROQ_API_KEY=`. The template already has the tested "Hey Danny" settings.
+⚠ `server/.env` is private and git-ignored: never commit or share it, or paste keys in chats.
+
+**4. Pick a Wi-Fi network** for the laptop *and* the glasses (they must be on the same one):
+⚠ **2.4 GHz only** (the ESP32-S3 has no 5 GHz) **and WPA2**. **WPA3-only networks fail**
+(`[wifi] FAILED to join`). A phone hotspot works well: set *AP band → 2.4 GHz* and
+*Security → WPA2-Personal* (iPhone: turn on *Maximize Compatibility*). If you change a
+hotspot's security, make the laptop **forget** that network and reconnect.
+Networks with a login page (college/office) don't work.
+
+**5. Start the server** and leave it running:
+- Windows: double-click `start_server.bat`
+- macOS: double-click `start_server.command` (first time: `chmod +x start_server.command`)
+
+⚠ When the firewall asks, click **Allow** (on Windows tick **Private and Public**; phone
+hotspots count as Public). Otherwise the glasses get `[server] not found`.
+
+**6. Flash the firmware** with ESP-IDF v5.5
+([install guide](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/get-started/)),
+board plugged in with a **data** USB-C cable:
+```bash
+firmware/idf/idf.sh -p /dev/cu.usbmodem101 flash      # macOS (port: ls /dev/cu.usbmodem*)
+```
+```powershell
+.\firmware\idf\idf.ps1 -p COM6 flash                    # Windows (port: Device Manager)
+```
+The first build downloads components and takes a few minutes.
+
+**7. Give the glasses Wi-Fi** (laptop connected to the network from step 4):
+```bash
+python tools/device.py setup          # Windows (or .venv\Scripts\python.exe)
+.venv/bin/python tools/device.py setup   # macOS
+```
+It sends the laptop's current network to the board. Success looks like:
+```
+[wifi] connected ip=... rssi=-60
+[server] found 10.x.x.x:5000
+SUCCESS - the ESP32 is on Wi-Fi and found the server.
+```
+
+**8. Teach it your voice** (10 s; stay quiet, then talk normally when told):
+```bash
+python tools/device.py calibrate
+```
+
+**9. Talk:** *"Hey Danny, what's the capital of Japan?"* The orange LED is on while it
+listens and thinks. The server window shows what it heard and the time for each step.
+
+### If it doesn't work
+
+| You see | Fix |
+|---|---|
+| `[wifi] FAILED to join`, reason "network not seen" | network is 5 GHz or too far. Type `scan` in `python tools/device.py monitor` to see what the glasses hear |
+| `[wifi] FAILED to join`, reason "rejected" or "no answer" | WPA3 network (switch to WPA2), or wrong password |
+| `[server] not found` | server not running, laptop on a different network, or firewall blocked Python (allow Public too) |
+| `[ignored] no words recognised` every time | you didn't say "Danny" (check the server window: Whisper's text is there); or run `calibrate` again |
+| Answers people talking nearby | `calibrate` again closer to the mic, or `mode button` (press BOOT, then ask) |
+| Reply has no voice / `requires terms acceptance` | accept the Orpheus terms in the key's organisation (step 2), or keep the built-in voice |
+| Slow replies | attach the XIAO's external antenna; `nettest` shows Wi-Fi upload times (should be ~30-50 ms) |
+| Speaker hiss | power the board from a power bank instead of the laptop; add 10-470 µF + 0.1 µF across amp VIN-GND |
 
 ---
 
